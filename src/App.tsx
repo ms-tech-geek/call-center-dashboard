@@ -3,6 +3,7 @@ import { Phone } from 'lucide-react';
 import { CallList } from './components/CallList';
 import { CallControls } from './components/CallControls';
 import { AgentStatus } from './components/AgentStatus';
+import { DialPad } from './components/DialPad';
 import { useCallStore } from './store/useCallStore';
 
 function App() {
@@ -46,7 +47,8 @@ function App() {
             <div className="md:col-span-2">
               <CallList />
             </div>
-            <div>
+            <div className="space-y-6">
+              <DialPad />
               <AgentStatus />
             </div>
           </div>
