@@ -52,11 +52,10 @@ setupWebSocket(io, callHandler);
 
 // Voice webhook for incoming calls
 app.post('/voice', (req, res) => {
-  console.log('Incoming call webhook received:', req.body);
+  const { CallSid, From, CallStatus } = req.body;
+  console.log('Incoming call webhook received:', { CallSid, From, CallStatus });
   
   const response = new twilio.twiml.VoiceResponse();
-  const callSid = req.body.CallSid;
-  const from = req.body.From || 'anonymous';
   
   response.say({ voice: 'alice' }, 'Welcome to our call center.');
   response.pause({ length: 1 });
@@ -64,14 +63,14 @@ app.post('/voice', (req, res) => {
   
   // Emit incoming call event
   const callData = {
-    callSid: callSid,
-    from: from,
+    callSid: CallSid,
+    from: From || 'anonymous',
     status: "incoming",
     startTime: new Date()
   };
   
   console.log('Emitting incoming call event:', callData);
-  io.emit("incoming_call", callData);
+  io.emit('incoming_call', callData);
   
   // Queue the call
   response.enqueue('support');
@@ -128,7 +127,7 @@ app.post('/status', (req, res) => {
 // Call logs endpoint
 app.get('/call-logs', async (req, res) => {
   try {
-    const calls = await twilioClient.calls.list();
+    const calls = await twilioClient.calls.list({ limit: 50 });
     const callLogs = calls.map(call => ({
       sid: call.sid,
       from: call.from,

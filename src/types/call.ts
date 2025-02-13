@@ -1,6 +1,6 @@
 export interface Call {
   id: string;
-  status: 'incoming' | 'ongoing' | 'completed' | 'transferred' | 'conference';
+  status: 'incoming' | 'outgoing' | 'ongoing' | 'completed' | 'transferred' | 'conference' | 'missed';
   phoneNumber: string;
   duration: number;
   startTime: Date;

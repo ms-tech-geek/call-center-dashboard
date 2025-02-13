@@ -23,7 +23,12 @@ export const useCallStore = create<CallStore>((set) => ({
   ],
   activeCall: null,
   socket: null,
-  addCall: (call) => set((state) => ({ calls: [...state.calls, call] })),
+  addCall: (call) => set((state) => ({ 
+    calls: [
+      call,
+      ...state.calls
+    ] 
+  })),
   updateCall: (id, updates) =>
     set((state) => ({
       calls: state.calls.map((call) =>
@@ -57,15 +62,19 @@ export const useCallStore = create<CallStore>((set) => ({
 
     socket.on('incoming_call', (data) => {
       console.log('Received incoming call:', data);
-      set((state) => ({
-        calls: [...state.calls, {
-          id: data.callSid,
-          status: 'incoming',
-          phoneNumber: data.from,
-          duration: 0,
-          startTime: new Date(data.startTime)
-        }]
-      }));
+      const newCall = {
+        id: data.callSid,
+        status: 'incoming',
+        phoneNumber: data.from,
+        duration: 0,
+        startTime: new Date(data.startTime)
+      };
+      
+      // Play notification sound
+      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2912/2912-preview.mp3');
+      audio.play().catch(e => console.log('Audio play failed:', e));
+      
+      set((state) => ({ calls: [newCall, ...state.calls] }));
     });
 
     socket.on('call_status', (data) => {
@@ -83,17 +92,22 @@ export const useCallStore = create<CallStore>((set) => ({
     
     // Fetch initial call logs
     fetch(`${SOCKET_URL}/call-logs`)
-      .then(response => response.json())
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Failed to fetch call logs');
+        }
+        return response.json();
+      })
       .then(data => {
         if (data.calls) {
           set(state => ({
             calls: data.calls.map((call: any) => ({
               id: call.sid,
-              status: call.status.toLowerCase(),
+              status: call.direction === 'inbound' ? 'incoming' : 'outgoing',
               phoneNumber: call.from,
               duration: parseInt(call.duration) || 0,
               startTime: new Date(call.startTime)
-            }))
+            })).sort((a, b) => b.startTime.getTime() - a.startTime.getTime())
           }));
         }
       })
