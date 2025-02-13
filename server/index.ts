@@ -14,9 +14,26 @@ config();
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: "*" }
+  cors: { 
+    origin: process.env.NODE_ENV === 'production' 
+      ? process.env.FRONTEND_URL 
+      : 'http://localhost:5173',
+    methods: ["GET", "POST"],
+    credentials: true
+  }
 });
 
+// Add security middleware
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header(
+    'Access-Control-Allow-Origin',
+    process.env.NODE_ENV === 'production' 
+      ? process.env.FRONTEND_URL 
+      : 'http://localhost:5173'
+  );
+  next();
+});
 // Initialize Twilio client
 const twilioClient = twilio(
   process.env.TWILIO_ACCOUNT_SID,
@@ -35,10 +52,29 @@ setupWebSocket(io, callHandler);
 
 // Voice webhook for incoming calls
 app.post('/voice', (req, res) => {
-  const response = new twilio.twiml.VoiceResponse();
+  console.log('Incoming call webhook received:', req.body);
   
-  response.say('Welcome to the Twilio call center demo.');
-  response.dial(process.env.TWILIO_PHONE_NUMBER);
+  const response = new twilio.twiml.VoiceResponse();
+  const callSid = req.body.CallSid;
+  const from = req.body.From || 'anonymous';
+  
+  response.say({ voice: 'alice' }, 'Welcome to our call center.');
+  response.pause({ length: 1 });
+  response.say({ voice: 'alice' }, 'Please wait while we connect you with an available agent.');
+  
+  // Emit incoming call event
+  const callData = {
+    callSid: callSid,
+    from: from,
+    status: "incoming",
+    startTime: new Date()
+  };
+  
+  console.log('Emitting incoming call event:', callData);
+  io.emit("incoming_call", callData);
+  
+  // Queue the call
+  response.enqueue('support');
   
   res.type('text/xml');
   res.send(response.toString());
@@ -81,7 +117,11 @@ app.post('/call', async (req, res) => {
 // Status callback endpoint
 app.post('/status', (req, res) => {
   const { CallSid, CallStatus } = req.body;
-  io.emit("call_status", { callSid: CallSid, status: CallStatus });
+  console.log('Call status update:', { CallSid, CallStatus });
+  
+  const statusData = { callSid: CallSid, status: CallStatus };
+  io.emit("call_status", statusData);
+  
   res.sendStatus(200);
 });
 

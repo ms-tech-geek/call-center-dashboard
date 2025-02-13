@@ -7,24 +7,11 @@ import { DialPad } from './components/DialPad';
 import { useCallStore } from './store/useCallStore';
 
 function App() {
-  const addCall = useCallStore((state) => state.addCall);
+  const { initializeSocket } = useCallStore();
 
-  // Simulate incoming calls for demo purposes
   React.useEffect(() => {
-    const simulateIncomingCall = () => {
-      const phoneNumber = `+1${Math.floor(Math.random() * 9000000000 + 1000000000)}`;
-      addCall({
-        id: Math.random().toString(36).substr(2, 9),
-        status: 'incoming',
-        phoneNumber,
-        duration: 0,
-        startTime: new Date(),
-      });
-    };
-
-    const interval = setInterval(simulateIncomingCall, 15000);
-    return () => clearInterval(interval);
-  }, [addCall]);
+    initializeSocket();
+  }, [initializeSocket]);
 
   return (
     <div className="min-h-screen bg-gray-100">

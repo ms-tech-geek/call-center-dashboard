@@ -5,11 +5,15 @@ interface CallStore {
   calls: Call[];
   agents: Agent[];
   activeCall: Call | null;
+  socket: WebSocket | null;
   addCall: (call: Call) => void;
   updateCall: (id: string, updates: Partial<Call>) => void;
   setActiveCall: (call: Call | null) => void;
   updateAgentStatus: (agentId: string, status: Agent['status']) => void;
+  initializeSocket: () => void;
 }
+
+const SOCKET_URL = import.meta.env.VITE_API_URL || window.location.origin.replace('5173', '3000');
 
 export const useCallStore = create<CallStore>((set) => ({
   calls: [],
@@ -18,6 +22,7 @@ export const useCallStore = create<CallStore>((set) => ({
     { id: '2', name: 'Jane Smith', status: 'offline' },
   ],
   activeCall: null,
+  socket: null,
   addCall: (call) => set((state) => ({ calls: [...state.calls, call] })),
   updateCall: (id, updates) =>
     set((state) => ({
@@ -32,4 +37,70 @@ export const useCallStore = create<CallStore>((set) => ({
         agent.id === agentId ? { ...agent, status } : agent
       ),
     })),
+  initializeSocket: () => {
+    const socket = io(SOCKET_URL, {
+      withCredentials: true,
+      transports: ['websocket', 'polling']
+    });
+    
+    socket.on('connect', () => {
+      console.log('Connected to WebSocket server');
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Disconnected from WebSocket server');
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('WebSocket connection error:', error);
+    });
+
+    socket.on('incoming_call', (data) => {
+      console.log('Received incoming call:', data);
+      set((state) => ({
+        calls: [...state.calls, {
+          id: data.callSid,
+          status: 'incoming',
+          phoneNumber: data.from,
+          duration: 0,
+          startTime: new Date(data.startTime)
+        }]
+      }));
+    });
+
+    socket.on('call_status', (data) => {
+      console.log('Received call status update:', data);
+      set((state) => ({
+        calls: state.calls.map(call => 
+          call.id === data.callSid 
+            ? { ...call, status: data.status.toLowerCase() }
+            : call
+        )
+      }));
+    });
+    
+    set({ socket });
+    
+    // Fetch initial call logs
+    fetch(`${SOCKET_URL}/call-logs`)
+      .then(response => response.json())
+      .then(data => {
+        if (data.calls) {
+          set(state => ({
+            calls: data.calls.map((call: any) => ({
+              id: call.sid,
+              status: call.status.toLowerCase(),
+              phoneNumber: call.from,
+              duration: parseInt(call.duration) || 0,
+              startTime: new Date(call.startTime)
+            }))
+          }));
+        }
+      })
+      .catch(error => console.error('Error fetching call logs:', error));
+    
+    return () => {
+      socket.disconnect();
+    };
+  }
 }));

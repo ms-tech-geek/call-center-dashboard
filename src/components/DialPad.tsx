@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Phone } from 'lucide-react';
 import { useCallStore } from '../store/useCallStore';
 
+const API_URL = import.meta.env.VITE_API_URL || window.location.origin.replace('5173', '3000');
+
 export const DialPad: React.FC = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isDialing, setIsDialing] = useState(false);
@@ -42,7 +44,7 @@ export const DialPad: React.FC = () => {
       setIsDialing(true);
       setError('');
       
-      const response = await fetch('http://localhost:3000/call', {
+      const response = await fetch(`${API_URL}/call`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
