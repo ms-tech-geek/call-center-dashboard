@@ -52,8 +52,8 @@ setupWebSocket(io, callHandler);
 
 // Voice webhook for incoming calls
 app.post('/voice', (req, res) => {
-  const { CallSid, From, CallStatus } = req.body;
-  console.log('Incoming call webhook received:', { CallSid, From, CallStatus });
+  const { CallSid, From: CallerNumber, To: RecipientNumber, CallStatus } = req.body;
+  console.log('Incoming call webhook received:', { CallSid, CallerNumber, RecipientNumber, CallStatus });
   
   const response = new twilio.twiml.VoiceResponse();
   
@@ -64,8 +64,9 @@ app.post('/voice', (req, res) => {
   // Emit incoming call event
   const callData = {
     callSid: CallSid,
-    from: From || 'anonymous',
-    status: "incoming",
+    from: CallerNumber || 'anonymous',
+    to: RecipientNumber,
+    status: CallStatus.toLowerCase(),
     startTime: new Date()
   };
   
@@ -115,10 +116,15 @@ app.post('/call', async (req, res) => {
 
 // Status callback endpoint
 app.post('/status', (req, res) => {
-  const { CallSid, CallStatus } = req.body;
-  console.log('Call status update:', { CallSid, CallStatus });
+  const { CallSid, CallStatus, From, To } = req.body;
+  console.log('Call status update:', { CallSid, CallStatus, From, To });
   
-  const statusData = { callSid: CallSid, status: CallStatus };
+  const statusData = { 
+    callSid: CallSid, 
+    status: CallStatus.toLowerCase(),
+    from: From,
+    to: To
+  };
   io.emit("call_status", statusData);
   
   res.sendStatus(200);

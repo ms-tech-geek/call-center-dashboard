@@ -62,10 +62,13 @@ export const useCallStore = create<CallStore>((set) => ({
 
     socket.on('incoming_call', (data) => {
       console.log('Received incoming call:', data);
+      // Check if it's an incoming call to our Twilio number
+      const isTwilioIncoming = data.to === process.env.TWILIO_PHONE_NUMBER;
+      
       const newCall = {
         id: data.callSid,
         status: 'incoming',
-        phoneNumber: data.from,
+        phoneNumber: isTwilioIncoming ? data.from : data.to,
         duration: 0,
         startTime: new Date(data.startTime)
       };
@@ -79,10 +82,16 @@ export const useCallStore = create<CallStore>((set) => ({
 
     socket.on('call_status', (data) => {
       console.log('Received call status update:', data);
+      const isTwilioIncoming = data.to === process.env.TWILIO_PHONE_NUMBER;
+      
       set((state) => ({
         calls: state.calls.map(call => 
           call.id === data.callSid 
-            ? { ...call, status: data.status.toLowerCase() }
+            ? { 
+                ...call, 
+                status: data.status.toLowerCase(),
+                phoneNumber: isTwilioIncoming ? data.from : data.to
+              }
             : call
         )
       }));
@@ -103,8 +112,8 @@ export const useCallStore = create<CallStore>((set) => ({
           set(state => ({
             calls: data.calls.map((call: any) => ({
               id: call.sid,
-              status: call.direction === 'inbound' ? 'incoming' : 'outgoing',
-              phoneNumber: call.from,
+              status: call.status.toLowerCase(),
+              phoneNumber: call.direction === 'inbound' ? call.from : call.to,
               duration: parseInt(call.duration) || 0,
               startTime: new Date(call.startTime)
             })).sort((a, b) => b.startTime.getTime() - a.startTime.getTime())
