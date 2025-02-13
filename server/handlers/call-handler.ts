@@ -9,10 +9,18 @@ export class CallHandler {
 
   async makeOutboundCall(to: string, agentId: string) {
     try {
+      // Validate phone number format
+      if (!to.match(/^\+91\d{10}$/)) {
+        throw new Error('Invalid Indian phone number format');
+      }
+
       const call = await this.twilioClient.calls.create({
         url: `${process.env.BASE_URL}/webhook/voice`,
         to,
         from: process.env.TWILIO_PHONE_NUMBER,
+        statusCallback: `${process.env.BASE_URL}/webhook/status`,
+        statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+        statusCallbackMethod: 'POST',
       });
 
       // Notify connected clients about the new call

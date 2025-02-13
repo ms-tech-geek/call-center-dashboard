@@ -42,14 +42,13 @@ export const DialPad: React.FC = () => {
       setIsDialing(true);
       setError('');
       
-      const response = await fetch('http://localhost:3000/api/calls/dial', {
+      const response = await fetch('http://localhost:3000/call', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          to: formattedNumber,
-          agentId: '1', // Using the first agent for demo
+          to: formattedNumber
         }),
       });
 

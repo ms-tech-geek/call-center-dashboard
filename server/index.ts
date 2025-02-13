@@ -14,10 +14,7 @@ config();
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: {
-    origin: 'http://localhost:5173',
-    methods: ['GET', 'POST']
-  }
+  cors: { origin: "*" }
 });
 
 // Initialize Twilio client
@@ -36,79 +33,75 @@ const callHandler = new CallHandler(twilioClient, io);
 // Setup WebSocket
 setupWebSocket(io, callHandler);
 
-// Twilio webhook for incoming calls
-app.post('/webhook/voice', (req, res) => {
+// Voice webhook for incoming calls
+app.post('/voice', (req, res) => {
   const response = new twilio.twiml.VoiceResponse();
   
-  // Add your initial call handling logic here
-  response.say('Welcome to our call center. Please wait while we connect you with an agent.');
-  
-  // Enqueue the call
-  response.enqueue('support');
+  response.say('Welcome to the Twilio call center demo.');
+  response.dial(process.env.TWILIO_PHONE_NUMBER);
   
   res.type('text/xml');
   res.send(response.toString());
 });
 
-// API Routes
-app.post('/api/calls/dial', async (req, res) => {
+// Outbound call endpoint
+app.post('/call', async (req, res) => {
   try {
-    const schema = z.object({
-      to: z.string(),
-      agentId: z.string()
+    const { to } = req.body;
+    
+    if (!to.match(/^\+91\d{10}$/)) {
+      throw new Error('Invalid Indian phone number format');
+    }
+
+    // Use demo TwiML URL for testing
+    const twimlUrl = 'https://demo.twilio.com/welcome/voice/';
+
+    const call = await twilioClient.calls.create({
+      url: twimlUrl,
+      to,
+      from: process.env.TWILIO_PHONE_NUMBER,
     });
 
-    const { to, agentId } = schema.parse(req.body);
-    const call = await callHandler.makeOutboundCall(to, agentId);
-    res.json(call);
+    io.emit("new_call", { 
+      callSid: call.sid, 
+      to, 
+      status: "initiated" 
+    });
+
+    res.json({ 
+      message: "Call initiated", 
+      callSid: call.sid 
+    });
   } catch (error) {
     console.error('Error making outbound call:', error);
-    res.status(400).json({ error: 'Invalid request' });
+    res.status(500).json({ error: error.message });
   }
 });
 
-app.post('/api/calls/:callSid/transfer', async (req, res) => {
-  try {
-    const schema = z.object({
-      targetAgentId: z.string()
-    });
+// Status callback endpoint
+app.post('/status', (req, res) => {
+  const { CallSid, CallStatus } = req.body;
+  io.emit("call_status", { callSid: CallSid, status: CallStatus });
+  res.sendStatus(200);
+});
 
-    const { targetAgentId } = schema.parse(req.body);
-    const { callSid } = req.params;
+// Call logs endpoint
+app.get('/call-logs', async (req, res) => {
+  try {
+    const calls = await twilioClient.calls.list();
+    const callLogs = calls.map(call => ({
+      sid: call.sid,
+      from: call.from,
+      to: call.to,
+      status: call.status,
+      duration: call.duration,
+      startTime: call.startTime,
+    }));
     
-    await callHandler.transferCall(callSid, targetAgentId);
-    res.json({ success: true });
+    io.emit("call_logs_update", { calls: callLogs });
+    res.json({ calls: callLogs });
   } catch (error) {
-    console.error('Error transferring call:', error);
-    res.status(400).json({ error: 'Invalid request' });
-  }
-});
-
-app.post('/api/calls/:callSid/conference', async (req, res) => {
-  try {
-    const schema = z.object({
-      participants: z.array(z.string())
-    });
-
-    const { participants } = schema.parse(req.body);
-    const { callSid } = req.params;
-    
-    await callHandler.createConference(callSid, participants);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error creating conference:', error);
-    res.status(400).json({ error: 'Invalid request' });
-  }
-});
-
-app.post('/api/calls/:callSid/record', async (req, res) => {
-  try {
-    const { callSid } = req.params;
-    const recording = await callHandler.startRecording(callSid);
-    res.json(recording);
-  } catch (error) {
-    console.error('Error starting recording:', error);
-    res.status(400).json({ error: 'Failed to start recording' });
+    res.status(500).json({ error: error.message });
   }
 });
 
