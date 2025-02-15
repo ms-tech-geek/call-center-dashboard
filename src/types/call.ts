@@ -5,6 +5,7 @@ export interface Call {
   duration: number;
   startTime: Date;
   endTime?: Date;
+  token?: string;
   recordingUrl?: string;
   notes?: string;
   agentId?: string;
