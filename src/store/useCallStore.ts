@@ -1,10 +1,12 @@
 import { create } from 'zustand';
+import { Device } from '@twilio/voice-sdk';
 import type { Call, Agent } from '../types/call';
 
 interface CallStore {
   calls: Call[];
   agents: Agent[];
   activeCall: Call | null;
+  device: Device | null;
   socket: WebSocket | null;
   addCall: (call: Call) => void;
   updateCall: (id: string, updates: Partial<Call>) => void;
@@ -22,6 +24,7 @@ export const useCallStore = create<CallStore>((set) => ({
     { id: '2', name: 'Jane Smith', status: 'offline' },
   ],
   activeCall: null,
+  device: null,
   socket: null,
   addCall: (call) => set((state) => ({ 
     calls: [
@@ -63,26 +66,50 @@ export const useCallStore = create<CallStore>((set) => ({
     socket.on('incoming_call', (data) => {
       console.log('Received incoming call:', data);
       // Check if it's an incoming call to our Twilio number
-      const isTwilioIncoming = data.to === process.env.TWILIO_PHONE_NUMBER;
+      const isTwilioIncoming = true; // All calls to webhook are incoming
+      const token = data.token;
       
       const newCall = {
         id: data.callSid,
         status: 'incoming',
         phoneNumber: isTwilioIncoming ? data.from : data.to,
         duration: 0,
-        startTime: new Date(data.startTime)
+        startTime: new Date(data.startTime),
+        token
       };
       
       // Play notification sound
       const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2912/2912-preview.mp3');
       audio.play().catch(e => console.log('Audio play failed:', e));
       
-      set((state) => ({ calls: [newCall, ...state.calls] }));
+      set((state) => ({ 
+        calls: [newCall, ...state.calls],
+        activeCall: newCall
+      }));
+      
+      // Initialize Twilio Device if not already done
+      if (!state.device && token) {
+        const device = new Device(token, {
+          codecPreferences: ['opus', 'pcmu'],
+          fakeLocalDTMF: true,
+          enableRingingState: true,
+        });
+        
+        device.on('ready', () => {
+          console.log('Twilio Device is ready for calls');
+        });
+        
+        device.on('error', (error) => {
+          console.error('Twilio Device error:', error);
+        });
+        
+        set({ device });
+      }
     });
 
     socket.on('call_status', (data) => {
       console.log('Received call status update:', data);
-      const isTwilioIncoming = data.to === process.env.TWILIO_PHONE_NUMBER;
+      const isTwilioIncoming = true; // All calls to webhook are incoming
       
       set((state) => ({
         calls: state.calls.map(call => 

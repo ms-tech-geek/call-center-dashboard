@@ -4,6 +4,7 @@ import { CallList } from './components/CallList';
 import { CallControls } from './components/CallControls';
 import { AgentStatus } from './components/AgentStatus';
 import { DialPad } from './components/DialPad';
+import { CallNotification } from './components/CallNotification';
 import { useCallStore } from './store/useCallStore';
 
 function App() {
@@ -43,6 +44,7 @@ function App() {
       </main>
 
       <CallControls />
+      <CallNotification />
     </div>
   );
 }
