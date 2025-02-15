@@ -51,7 +51,7 @@ const callHandler = new CallHandler(twilioClient, io);
 setupWebSocket(io, callHandler);
 
 // Voice webhook for incoming calls
-app.post('/voice', (req, res) => {
+app.post('/webhook/voice', (req, res) => {
   const { CallSid, From: CallerNumber, To: RecipientNumber, CallStatus } = req.body;
   console.log('Incoming call webhook received:', { CallSid, CallerNumber, RecipientNumber, CallStatus });
   
@@ -59,22 +59,35 @@ app.post('/voice', (req, res) => {
   
   response.say({ voice: 'alice' }, 'Welcome to our call center.');
   response.pause({ length: 1 });
-  response.say({ voice: 'alice' }, 'Please wait while we connect you with an available agent.');
+  
+  // Generate a client token for browser-based calls
+  const capability = new twilio.jwt.ClientCapability({
+    accountSid: process.env.TWILIO_ACCOUNT_SID!,
+    authToken: process.env.TWILIO_AUTH_TOKEN!
+  });
+  
+  capability.addScope(
+    new twilio.jwt.ClientCapability.IncomingClientScope('browser-client')
+  );
+  
+  const token = capability.toJwt();
   
   // Emit incoming call event
   const callData = {
     callSid: CallSid,
     from: CallerNumber || 'anonymous',
-    to: RecipientNumber,
+    to: process.env.TWILIO_PHONE_NUMBER,
     status: CallStatus.toLowerCase(),
-    startTime: new Date()
+    startTime: new Date(),
+    token
   };
   
   console.log('Emitting incoming call event:', callData);
   io.emit('incoming_call', callData);
   
-  // Queue the call
-  response.enqueue('support');
+  // Connect to browser client
+  const dial = response.dial();
+  dial.client('browser-client');
   
   res.type('text/xml');
   res.send(response.toString());
@@ -115,7 +128,7 @@ app.post('/call', async (req, res) => {
 });
 
 // Status callback endpoint
-app.post('/status', (req, res) => {
+app.post('/webhook/status', (req, res) => {
   const { CallSid, CallStatus, From, To } = req.body;
   console.log('Call status update:', { CallSid, CallStatus, From, To });
   
